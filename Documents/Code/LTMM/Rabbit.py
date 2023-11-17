@@ -6,8 +6,6 @@ import binascii
 import sys
 
 def enc_long(n):
-    '''Encodes arbitrarily large number n to a sequence of bytes.
-    Big endian byte order is used.'''
     s = ""
     while n > 0:
         s = chr(n & 0xFF) + s
@@ -20,7 +18,6 @@ rot08 = lambda x: ((x <<  8) & 0xFFFFFFFF) | (x >> 24)
 rot16 = lambda x: ((x << 16) & 0xFFFFFFFF) | (x >> 16)
 
 def _nsf(u, v):
-    '''Internal non-linear state transition'''
     s = (u + v) % WORDSIZE
     s = s * s
     return (s ^ (s >> 32)) % WORDSIZE
@@ -28,21 +25,15 @@ def _nsf(u, v):
 class Rabbit:
 
     def __init__(self, key, iv = None):
-        '''Initialize Rabbit cipher using a 128 bit integer/string'''
         
         if isinstance(key, str):
-            # interpret key string in big endian byte order
             if len(key) < 16:
                 key = '\x00' * (16 - len(key)) + key
-            # if len(key) > 16 bytes only the first 16 will be considered
             k = [ord(key[i + 1]) | (ord(key[i]) << 8)
                  for i in range(14, -1, -2)]
         else:
-            # k[0] = least significant 16 bits
-            # k[7] = most significant 16 bits
             k = [(key >> i) & 0xFFFF for i in range(0, 128, 16)]
             
-        # State and counter initialization
         x = [(k[(j + 5) % 8] << 16) | k[(j + 4) % 8] if j & 1 else
              (k[(j + 1) % 8] << 16) | k[j] for j in range(8)]
         c = [(k[j] << 16) | k[(j + 1) % 8] if j & 1 else
@@ -51,8 +42,8 @@ class Rabbit:
         self.x = x
         self.c = c
         self.b = 0
-        self._buf = 0           # output buffer
-        self._buf_bytes = 0     # fill level of buffer
+        self._buf = 0         
+        self._buf_bytes = 0     
         
         next(self)
         next(self)
@@ -62,7 +53,7 @@ class Rabbit:
         for j in range(8):
             c[j] ^= x[(j + 4) % 8]
         
-        self.start_x = self.x[:]    # backup initial key for IV/reset
+        self.start_x = self.x[:]   
         self.start_c = self.c[:]
         self.start_b = self.b
 
@@ -70,7 +61,6 @@ class Rabbit:
             self.set_iv(iv)
 
     def reset(self, iv = None):
-        '''Reset the cipher and optionally set a new IV (int64 / string).'''
         
         self.c = self.start_c[:]
         self.x = self.start_x[:]
@@ -81,7 +71,6 @@ class Rabbit:
             self.set_iv(iv)
 
     def set_iv(self, iv):
-        '''Set a new IV (64 bit integer / bytestring).'''
 
         if isinstance(iv, str):
             i = 0
@@ -108,10 +97,8 @@ class Rabbit:
         next(self)
         next(self)
         next(self)
-        
 
     def __next__(self):
-        '''Proceed to the next internal state'''
         
         c = self.c
         x = self.x
@@ -150,7 +137,6 @@ class Rabbit:
         return self
 
     def derive(self):
-        '''Derive a 128 bit integer from the internal state'''
         
         x = self.x
         return ((x[0] & 0xFFFF) ^ (x[5] >> 16)) | \
@@ -162,9 +148,7 @@ class Rabbit:
                (((x[6] & 0xFFFF) ^ (x[3] >> 16)) << 96)| \
                (((x[6] >> 16) ^ (x[1] & 0xFFFF)) << 112)
 
-    
     def keystream(self, n):
-        '''Generate a keystream of n bytes'''
         
         res = ""
         b = self._buf
@@ -186,7 +170,6 @@ class Rabbit:
         return res
 
     def encrypt(self, data):
-        '''Encrypt/Decrypt data of arbitrary length.'''
         
         res = ""
         b = self._buf
@@ -195,7 +178,7 @@ class Rabbit:
         derive = self.derive
 
         for c in data:
-            if not j:   # empty buffer => fetch next 128 bits
+            if not j:   
                 j = 16
                 next()
                 b = derive()
